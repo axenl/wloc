@@ -1,87 +1,52 @@
-# WLOC 虚拟定位 - 使用说明
+# 使用、迁移与排障
 
-## 工作原理
+## 首次使用
 
-```
-用户在手机 Safari 打开选点页面
-  → 地图选位置 / 搜索地名 / 粘贴地图链接
-  → 点击「储存到设备」
-  → 页面请求 https://gs-loc.apple.com/wloc-settings/save?lon=x&lat=y
-  → 代理模块拦截请求 → wloc-settings.js 写入 $persistentStore
-  → 下次 Apple 定位触发 → wloc.js 读取坐标 → 修改定位响应
-```
+先阅读 README 的兼容性状态，再安装对应客户端模块，启用 MITM 并信任客户端证书。模块匹配的主机包括 `gs-loc.apple.com`、`gs-loc-cn.apple.com`、`gsp-ssl.ls.apple.com` 及两种上游高德备用主机。
 
-如果模块未启用 → 请求不会被拦截 → 页面提示检查 MITM/模块配置。
+用 Safari 打开自己部署的选点网页，选点后点击「储存到设备」。网页查询的「当前生效坐标」是代理本地保存值，不是设备定位服务的独立测量结果。
 
----
+## 从旧仓库迁移
 
-## 使用方法
+1. 订阅本仓库对应模块，停用旧模块，避免重复脚本执行。
+2. 保留客户端持久化键 `wloc_settings`；本分支没有改名。
+3. 原网页收藏在旧站点的 localStorage 中，换站点不会自动迁移。请先记录收藏，不要清除旧浏览器数据。
+4. 模块默认参数继续沿用上游值；自定义参数要手动核对。
 
-### 1. 安装模块（一次性）
-订阅对应平台的模块并启用 MITM。
+## 快捷指令
 
-### 2. 打开选点页面
-在 Safari 中打开公共选点页面（建议添加到主屏幕）:
-```
-https://你的worker域名/
-```
+### 安装快捷指令
 
-> Worker 是纯静态页面，不存储任何数据。坐标直接写入你的设备本地。
+- [WLOC设置位置 xepes0](https://www.icloud.com/shortcuts/0a6465168d554135b78008a8b4bd7c01)
+- [wloc 清理恢复位置](https://www.icloud.com/shortcuts/f42632d406504f24a2cd163af4fe012f)
 
-### 3. 选择位置
-- **点击地图** — 直接点选
-- **搜索地名** — 输入"上海外滩"等
-- **粘贴链接** — 从 Apple Maps / Google Maps / 高德 / 百度复制分享链接
-- **当前位置** — 使用浏览器定位
+设置位置指令基于原作者版本，由维护者将解析地址改为 `https://wloc.xepesw.workers.dev/api/parse` 后重新分享；恢复位置指令沿用上游 README 的链接。尚未独立复核新版指令的真机运行结果。安装后，在苹果地图选点 → 共享 → 选择设置指令；高德地图通过「分享 → 更多」调用。恢复指令用于清除保存值，不保证立即清除系统定位缓存。
 
-### 4. 储存到设备
-点击「� 储存到设备」→ 显示 ✓ 即成功。
+### 替换旧解析服务
 
----
+本仓库当前选点网页：https://wloc.xepesw.workers.dev/ 。使用该站点时，将旧解析服务的域名替换为 `wloc.xepesw.workers.dev`；解析接口为 `https://wloc.xepesw.workers.dev/api/parse`，原有查询参数和输入变量必须保留。自行部署的用户应使用自己的域名。
 
-## 部署公共选点页面
+1. 按[部署说明](DEPLOYMENT.md)部署自己的 Worker，取得 HTTPS 地址。
+2. 如果已经装过旧指令，先在「快捷指令」App 中复制一份备份，再打开设置指令的编辑界面。
+3. 查找包含 `wloc-spoofer.wloc.workers.dev` 的 URL 或文本动作，把该服务地址替换为自己的 Worker 地址，保留 `/api/parse` 路径、查询参数及输入变量。
+4. 保留 `https://gs-loc.apple.com/wloc-settings/save`。它是客户端拦截的设备保存路径，不是旧公共 Worker。
+5. 用地图分享链接检查解析和保存结果，再运行恢复指令确认清理行为。
 
-Worker 是纯静态页面服务，无需任何绑定：
+README 和模块中的新 GitHub 地址不会自动同步到已安装的快捷指令。如果 iCloud 分享失效，仍可使用自部署选点网页；本仓库未恢复可直接导入的 `.shortcut` 文件。
 
-```bash
-cd worker
-npx wrangler deploy
-```
+解析接口：`GET https://wloc.xepesw.workers.dev/api/parse?format=json&u=<URL编码的地图链接>`，成功返回 `lat`、`lon`、`name`。使用「获取词典值」的快捷指令必须保留 `format=json`，并对输入地图链接进行 URL 编码。站点根地址返回选点网页，不能代替解析接口。不带 `format=json` 时默认返回 `lat=...&lon=...` 纯文本，供旧快捷指令兼容使用。保存接口仍为 `https://gs-loc.apple.com/wloc-settings/save`，它由手机代理脚本拦截，不是 Worker 路由；不要将这个 Apple 地址替换为 Worker 域名。
 
-或在 CF Dashboard → Workers → 新建 Worker → 粘贴 `wloc-worker.js` → 部署。
+手动构建快捷指令时：接收分享文本 → URL 编码后请求解析接口 → 检查成功 JSON → 将 lat/lon 传给保存接口。恢复操作使用相同保存路径并附 `?action=clear`。先检查失败响应，避免把空结果写入设备。
 
-不需要 KV、不需要数据库、不需要环境变量。
+## 排障顺序
 
----
+| 现象 | 检查方向 |
+| --- | --- |
+| 模块下载失败 | GitHub raw 地址、仓库是否公开、网络可达性 |
+| 地图空白 | Leaflet CDN、瓦片服务、浏览器网络 |
+| 链接解析失败 | Worker 路由、原链接格式、地图服务响应 |
+| 储存失败 | Safari 是否经过代理、模块规则和 MITM 证书 |
+| 储存成功但定位不变 | 系统版本、locationd TLS 拒绝、GPS 覆盖、定位缓存 |
+| 清除后仍改变位置 | 模块参数中是否另设了自定义经纬度，是否有重复模块 |
 
-## 模块配置
-
-模块包含两条脚本规则（已自动配置，用户无需操作）：
-
-| 规则 | 类型 | 路径 | 作用 |
-|------|------|------|------|
-| Apple WLOC | http-response | `/clls/wloc` | 修改定位响应 |
-| WLOC Settings | http-request | `/wloc-settings/save` | 接收选点页面写入 |
-
-MITM 主机名: `gs-loc.apple.com, gs-loc-cn.apple.com`（已包含在模块中）
-
----
-
-## 储存失败排查
-
-页面显示红色提示时，检查：
-1. **模块已启用** — 在代理工具中确认 WLOC 模块开关打开
-2. **MITM 证书** — 已安装并信任 CA 证书
-3. **MITM 主机名** — 包含 `gs-loc.apple.com`
-4. **代理连接** — 当前网络走代理（Safari 请求会经过代理）
-
----
-
-## 备选：手动编辑（BoxJS）
-
-不使用选点页面时，可在 BoxJS 中直接编辑 `wloc_settings`:
-```json
-{"longitude":121.4737,"latitude":31.2304,"accuracy":25}
-```
-
-优先级: 已储存坐标 > 模块参数 > 默认值
+上游提出重启可能帮助清除缓存，但重启不能解决 TLS 证书校验限制。不要把反复切换飞行模式当成所有系统版本通用的解决方案。
