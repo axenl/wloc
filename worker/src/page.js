@@ -499,7 +499,7 @@ queryActive();
   </div>
 </section>
 <footer style="padding:16px;text-align:center;font-size:13px;color:#666">
-  WLOC 社区维护版 · <a href="${SOURCE_URL}" target="_blank" rel="noopener noreferrer">源码与许可证</a>
+  WLOC 定位 · <a href="${SOURCE_URL}" target="_blank" rel="noopener noreferrer">源码与许可证</a>
 </footer>
 </body>
 </html>`;
